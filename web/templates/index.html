@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Detection and Model Testing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            margin: 20px;
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px;
+        }
+        .column {
+            flex: 1;
+            max-width: 300px;
+            margin: 10px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .column h2 {
+            color: #555;
+           
+        }
+        .video-container {
+            margin: 20px auto;
+            max-width: 400px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+        }
+        #liveVideo {
+            width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+        .result-image, .result-chart {
+            max-width: 100%;
+            margin-top: 20px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        form {
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Face Detection with Models</h1>
+    <!-- Card-style Video Container -->
+    <div class="video-container" id="vid">
+        <img id="videoFeed" src="/video_feed" alt="Live Video Feed">
+        <button id="toggleButton" type="button">Start Detection</button>
+    </div>
+
+    <!-- File Upload Form -->
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept="image/*,video/*" required>
+        <button type="submit">Detect Emotion</button>
+    </form>
+
+    <!-- Results Container -->
+    <div class="container">
+        <!-- Column for SVM Results -->
+        <div class="column">
+            <h2>SVM Results</h2>
+            <img id="svmImage" class="result-image" alt="SVM Result">
+            <p id="svmAccuracy">Accuracy: </p>
+            <p id="svmLabel"></p>
+            <p id="svmEmo"></p>
+        </div>
+
+        <!-- Column for CNN Results -->
+        <div class="column">
+            <h2>CNN Results</h2>
+            <img id="cnnImage" class="result-image" alt="CNN Result">
+            <p id="cnnAccuracy">Accuracy: </p>
+            <p id="cnnLabel"></p>
+            <p id="cnnEmo"></p>
+        </div>
+
+        <!-- Column for Transfer Learning Results -->
+        <div class="column">
+            <h2>Transfer Learning Results</h2>
+            <img id="transferImage" class="result-image" alt="Transfer Learning Result">
+            <p id="transferAccuracy">Accuracy: </p>
+            <p id="transferLabel"></p>
+            <p id="transferEmo"></p>
+        </div>
+    </div>
+
+    <canvas id="chart" class="result-chart"></canvas>
+
+    <script>
+        const videoFeed = document.getElementById('videoFeed');
+        const toggleButton = document.getElementById('toggleButton');
+        let isStreaming = true;
+        toggleButton.textContent = "Stop Detection";
+        toggleButton.addEventListener('click', () => {
+            if (isStreaming) {
+                // Stop video streaming
+                videoFeed.src = "";
+                videoFeed.style.display = "none";
+                toggleButton.textContent = "Start Detection";
+                isStreaming = false;
+            } else {
+                // Start video streaming
+                videoFeed.src = "/video_feed";
+                videoFeed.style.display = "block";
+                toggleButton.textContent = "Stop Detection";
+                isStreaming = true;
+            }
+        });
+
+        // Handle Upload Form Submission
+        document.getElementById('uploadForm').onsubmit = async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            // Update results for file upload
+            updateResults(data);
+        };
+
+        function updateResults(data) {
+            // Update SVM Results
+            if (data.svm_prediction) {
+                document.getElementById('svmImage').src = data.svm_prediction.result_image_url;
+                document.getElementById('svmImage').style.display = 'block';
+                document.getElementById('svmAccuracy').innerText = `Accuracy: Binary result`;
+                document.getElementById('svmLabel').innerText = `Lebel: ${data.svm_prediction.label}`;
+                document.getElementById('svmEmo').innerText = `Emotion: ${data.svm_prediction.emo}`;
+            }
+
+            // Update CNN Results
+            if (data.cnn_prediction) {
+                if (data.cnn_prediction.result_image_url) {
+                    document.getElementById('cnnImage').src = data.cnn_prediction.result_image_url;
+                    document.getElementById('cnnImage').style.display = 'block';
+                } else if (data.output_video) {
+                    document.getElementById('cnnVideo').src = data.output_video;
+                }
+               
+                document.getElementById('cnnAccuracy').innerText = `Accuracy: ${data.cnn_prediction.accuracy.toFixed(2)}%`;
+                document.getElementById('cnnLabel').innerText = `Lebel: ${data.cnn_prediction.label}`;
+                document.getElementById('cnnEmo').innerText = `Emotion: ${data.cnn_prediction.emo}`;
+            }
+
+            // Update Transfer Learning Results
+            if (data.tf_prediction) {
+                document.getElementById('transferImage').src = data.tf_prediction.result_image_url
+                document.getElementById('transferImage').style.display = 'block';
+                document.getElementById('transferAccuracy').innerText = `Accuracy: ${data.tf_prediction.accuracy.toFixed(2)}%`;
+                document.getElementById('transferLabel').innerText = `Lebel: ${data.tf_prediction.label}`;
+                document.getElementById('transferEmo').innerText = `Emotion: ${data.tf_prediction.emo}`;
+            }
+
+            // Update Chart
+            if (data.accuracy_chart) {
+                const chart = document.getElementById('chart');
+                chart.src = data.accuracy_chart;
+                chart.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
